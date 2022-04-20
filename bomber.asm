@@ -42,7 +42,7 @@ Reset:
 	lda #10
 	sta JetYPos		; JetYPos = 10
 
-	lda #60
+	lda #0
 	sta JetXPos		; JetXPos = 60
 	
 	lda #83
@@ -78,7 +78,21 @@ Reset:
 ;; Start the main display loop and frame rendering
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 StartFrame:
-	
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Calculations and task performed in the pre-VBLANK
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	lda JetXPos
+	ldy #0
+	jsr SetObjectXPos	; set player0 horizontal position
+
+	lda BomberXPos
+	ldy #1
+	jsr SetObjectXPos	; set player1 horizontal position
+
+	sta WSYNC
+	sta HMOVE		; apply the horizontal offsets previous set
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Display VSYNC and VBLANK
@@ -172,6 +186,27 @@ GameVisibleLine:
 ;; Loop back to start a brand new frame
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	jmp StartFrame		; continue to display the next frame
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to handle object horizontal position with fine offset
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; A is the target x-coordinate position in pixels of our object
+;; Y is the object type (0:player0, 1:player1, 2:missile0, 3:missile1, 4:ball)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SetObjectXPos subroutine
+	sta WSYNC		; start a fresh new scanline
+	sec			; make sure carry-flag is set before subtraction
+.Div15Loop
+	sbc #15			; subtract 15 from accumulator
+	bcs .Div15Loop		; loop until carry-flag is clear
+	eor #7			; handle offset range from -8 to 7
+	asl
+	asl
+	asl
+	asl			; four shift lefts to get only the top 4 bits
+	sta HMP0,Y		; store the fine offset to the correct HMxx
+	sta RESP0,Y		; fix object position in 15-step increment
+	rts
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Declare ROM lookup tables
