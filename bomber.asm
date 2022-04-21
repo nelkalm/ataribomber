@@ -21,6 +21,7 @@ JetColorPtr	word		; pointer to player0 color lookup table
 BomberSpritePtr	word		; pointer to player1 sprite lookup table
 BomberColorPtr	word		; pointer to player1 sprite lookup table
 JetAnimOffset	byte		; player0 sprite frame offset for animation
+Random		byte		; random number generated to set enemy position
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define constants
@@ -43,14 +44,17 @@ Reset:
 	lda #10
 	sta JetYPos		; JetYPos = 10
 
-	lda #0
+	lda #68
 	sta JetXPos		; JetXPos = 60
 	
+	lda #62
+	sta BomberXPos		; BomberXPos = 62
+
 	lda #83
 	sta BomberYPos		; BomberYPos = 83
 
-	lda #54
-	sta BomberXPos		; BomberXPos = 54
+	lda #%11010100
+	sta Random		; Random = $D4
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Initialize the pointers to the correct lookup table addresses
@@ -237,9 +241,8 @@ UpdateBomberPosition:
 	dec BomberYPos		; else, decrement enemy y-position for next frame	
 	jmp EndPositionUpdate
 .ResetBomberPosition:
-	lda #96
-	sta BomberYPos
-				; TODO: set bomber X position to random number
+	jsr GetRandomBomberPos	; call subroutine for next random x-position	
+
 EndPositionUpdate:		; fallback for the position update code
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -266,6 +269,37 @@ SetObjectXPos subroutine
 	asl			; four shift lefts to get only the top 4 bits
 	sta HMP0,Y		; store the fine offset to the correct HMxx
 	sta RESP0,Y		; fix object position in 15-step increment
+	rts
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to generate a Linear-Feedback Shift Register random number
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Generate a LFSR random number
+;; Divide the random value by 4 to limit the size of the result to match river
+;; Add 30 to compensate for the left green playfield
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+GetRandomBomberPos subroutine
+	lda Random
+	asl
+	eor Random
+	asl
+	eor Random
+	asl
+	asl
+	eor Random
+	asl
+	rol Random		; performs a series of shifts and bit operations
+
+	lsr			
+	lsr			; divide the value by 4 with 2 right shifts
+	sta BomberXPos		; save it to the variable BomberXPos
+	lda #30
+	adc BomberXPos		; adds 30 + BomberXPos to compensate for left PF
+	sta BomberXPos		; and sets the new value to the bomber x-position
+
+	lda #96
+	sta BomberYPos		; set the y-position to the top of the screen
+	
 	rts
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
