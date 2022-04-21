@@ -20,6 +20,7 @@ JetSpritePtr	word		; pointer to player0 sprite lookup table
 JetColorPtr	word		; pointer to player0 color lookup table
 BomberSpritePtr	word		; pointer to player1 sprite lookup table
 BomberColorPtr	word		; pointer to player1 sprite lookup table
+JetAnimOffset	byte		; player0 sprite frame offset for animation
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Define constants
@@ -142,6 +143,9 @@ GameVisibleLine:
 	bcc .DrawSpriteP0	; if result < SpriteHeight, call draw routine
 	lda #0			; else, set lookup index to 0
 .DrawSpriteP0:
+	clc			; clear carry flag before addition
+	adc JetAnimOffset	; jump to correct sprite frame address in memory
+
 	tay			; load Y so we can work with the pointer
 	lda (JetSpritePtr),Y	; load player0 bitmap data from lookup table
 	sta WSYNC		; wait for scanline
@@ -171,6 +175,9 @@ GameVisibleLine:
 	dex			; X--
 	bne .GameLineLoop	; repeat next main game scanline until finished
 
+	lda #0
+	sta JetAnimOffset	; reset jet animation frame to zero each frame
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Display Overscan
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -181,6 +188,59 @@ GameVisibleLine:
 	REPEND
 	lda #0
 	sta VBLANK		; turn off VBLANK
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Process joystick input for player0
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+CheckP0Up:
+	lda #%00010000		; player0 joystick up
+	bit SWCHA
+	bne CheckP0Down		; if bit pattern doesn't match, bypass Up block
+	inc JetYPos
+	lda #0
+	sta JetAnimOffset	; reset sprite animation to first frame
+
+CheckP0Down:
+        lda #%00100000          ; player0 joystick down
+        bit SWCHA               
+        bne CheckP0Left         ; if bit pattern doesn't match, bypass Down block
+        dec JetYPos
+	lda #0
+	sta JetAnimOffset	; reset sprite animation to first frame
+
+CheckP0Left:
+        lda #%01000000          ; player0 joystick left
+        bit SWCHA               
+        bne CheckP0Right        ; if bit pattern doesn't match, bypass left block
+        dec JetXPos
+	lda JET_HEIGHT		; 9
+	sta JetAnimOffset	; set animation offset to the second frame
+
+CheckP0Right:
+        lda #%10000000          ; player0 joystick right
+        bit SWCHA               
+        bne EndInputCheck       ; if bit pattern doesn't match, bypass right block
+        inc JetXPos
+	lda JET_HEIGHT		; 9
+	sta JetAnimOffset	; set animation offset to the second frame
+
+EndInputCheck:			; fallback when no input was performed
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Calculations to update position for next frame
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+UpdateBomberPosition:
+	lda BomberYPos
+	clc
+	cmp #0			; compare bomber y-position with 0
+	bmi .ResetBomberPosition	; if it is < 0, then reset y-pos to top
+	dec BomberYPos		; else, decrement enemy y-position for next frame	
+	jmp EndPositionUpdate
+.ResetBomberPosition:
+	lda #96
+	sta BomberYPos
+				; TODO: set bomber X position to random number
+EndPositionUpdate:		; fallback for the position update code
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loop back to start a brand new frame
